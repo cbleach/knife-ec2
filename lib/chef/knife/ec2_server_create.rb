@@ -19,6 +19,7 @@
 
 require 'chef/knife/ec2_base'
 require 'chef/knife/winrm_base'
+require 'chef/knife/dynect'
 
 class Chef
   class Knife
@@ -275,6 +276,10 @@ class Chef
         :proc => Proc.new { |key| Chef::Config[:knife][:provisioned_iops] = key },
         :default => nil
 
+      def use_tld
+        "flexilis.org"
+      end
+
       def run
         $stdout.sync = true
 
@@ -354,6 +359,17 @@ class Chef
           msg_pair("Private DNS Name", @server.private_dns_name)
         end
         msg_pair("Private IP Address", @server.private_ip_address)
+
+        new_record_name = "#{locate_config_value(:chef_node_name)}.#{use_tld}"
+        msg_pair("Adding Dynect DNS", "#{new_record_name} #{ssh_connect_host}")
+        Dynect::EC2Client.set_dns(
+          locate_config_value(:dynect_customer_name),
+          locate_config_value(:dynect_user_name),
+          locate_config_value(:dynect_password),
+          use_tld,
+          new_record_name,
+          ssh_connect_host
+        )
 
         #Check if Server is Windows or Linux
         if is_image_windows?

@@ -143,6 +143,11 @@ class Chef
         :long => "--prerelease",
         :description => "Install the pre-release chef gems"
 
+      option :with_volume,
+        :short => "-w VOLUME_NAME",
+        :long => "--with-volume VOLUME_NAME",
+        :description => "Attach an EBS volume on create"
+
       option :bootstrap_version,
         :long => "--bootstrap-version VERSION",
         :description => "The version of Chef to install",
@@ -397,6 +402,26 @@ class Chef
         else
           print "\n#{ui.color("Waiting for sshd", :magenta)}"
           wait_for_sshd(ssh_connect_host)
+
+          if config[:with_volume]
+            my_volume = connection.volumes.all.detect {|v| v.tags["name"] == config[:with_volume]}
+            if my_volume
+              my_volume.device = "/dev/xvdb"
+              my_volume.server = server
+              my_volume.wait_for { state == "in-use" }
+            else
+              my_volume = connection.volumes.create(:device => "/dev/xvdb", :availability_zone => server.availability_zone, :size => 50, :tags => { "name" => config[:with_volume], "description" => config[:with_volume] })
+              my_volume.wait_for { state == "available" }
+              my_volume.server = server
+              my_volume.wait_for { state == "in-use" }
+              msg_pair(" config[:identity_file] - ", config[:identity_file])
+              Net::SSH.start(ssh_connect_host, config[:ssh_user], {:keys => config[:identity_file], :keys_only => true, :paranoid => false}) do |ssh|
+                output = ssh.exec!("sudo mkfs.ext4 -L #{config[:with_volume]} /dev/xvdb")
+                msg_pair("Done", output)
+              end
+            end
+          end
+
           ssh_override_winrm
           bootstrap_for_linux_node(@server, ssh_connect_host).run
         end
@@ -603,6 +628,16 @@ class Chef
       end
 
       def create_server_def
+        if config[:with_volume]
+          my_volume = connection.volumes.all.detect {|v| v.tags["name"] == config[:with_volume]}
+        end
+        if my_volume
+          use_zone = my_volume.availability_zone
+          msg_pair("availability zone default was previously", locate_config_value(:availability_zone))
+          msg_pair("with_volume option specified; override server availability zone to the same as the volume", use_zone)
+        else
+          use_zone = locate_config_value(:availability_zone)
+        end
         server_def = {
           :image_id => locate_config_value(:image),
           :groups => config[:security_groups],

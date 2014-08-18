@@ -406,17 +406,17 @@ class Chef
           if config[:with_volume]
             my_volume = connection.volumes.all.detect {|v| v.tags["name"] == config[:with_volume]}
             if my_volume
-              my_volume.device = "/dev/xvdb"
+              my_volume.device = "/dev/xvdy"
               my_volume.server = server
               my_volume.wait_for { state == "in-use" }
             else
-              my_volume = connection.volumes.create(:device => "/dev/xvdb", :availability_zone => server.availability_zone, :size => 50, :tags => { "name" => config[:with_volume], "description" => config[:with_volume] })
+              my_volume = connection.volumes.create(:device => "/dev/xvdy", :availability_zone => server.availability_zone, :size => 50, :tags => { "name" => config[:with_volume], "description" => config[:with_volume] })
               my_volume.wait_for { state == "available" }
               my_volume.server = server
               my_volume.wait_for { state == "in-use" }
               msg_pair(" config[:identity_file] - ", config[:identity_file])
               Net::SSH.start(ssh_connect_host, config[:ssh_user], {:keys => config[:identity_file], :keys_only => true, :paranoid => false}) do |ssh|
-                output = ssh.exec!("sudo mkfs.ext4 -L #{config[:with_volume]} /dev/xvdb")
+                output = ssh.exec!("sudo mkfs.ext4 -L #{config[:with_volume]} /dev/xvdy")
                 msg_pair("Done", output)
               end
             end

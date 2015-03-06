@@ -148,6 +148,11 @@ class Chef
         :long => "--with-volume VOLUME_NAME",
         :description => "Attach an EBS volume on create"
 
+      option :ebs_volume_size,
+        :short => "-z VOLUME_SIZE",
+        :long => "--ebs-volume-size VOLUME_SIZE",
+        :description => "specify volume size"
+
       option :bootstrap_version,
         :long => "--bootstrap-version VERSION",
         :description => "The version of Chef to install",
@@ -410,7 +415,11 @@ class Chef
               my_volume.server = server
               my_volume.wait_for { state == "in-use" }
             else
-              my_volume = connection.volumes.create(:device => "/dev/xvdy", :availability_zone => server.availability_zone, :size => 50, :tags => { "name" => config[:with_volume], "description" => config[:with_volume] })
+              if config[:ebs_volume_size]
+                my_volume = connection.volumes.create(:device => "/dev/xvdy", :availability_zone => server.availability_zone, :size => config[:ebs_volume_size], :tags => { "name" => config[:with_volume], "description" => config[:with_volume] })
+              else
+                my_volume = connection.volumes.create(:device => "/dev/xvdy", :availability_zone => server.availability_zone, :size => 50, :tags => { "name" => config[:with_volume], "description" => config[:with_volume] })
+              end
               my_volume.wait_for { state == "available" }
               my_volume.server = server
               my_volume.wait_for { state == "in-use" }
@@ -790,7 +799,7 @@ class Chef
         gw_user ||= ssh_gateway_config[:user]
 
         # Always use the gateway keys from the SSH Config
-        gateway_keys = ssh_gateway_config[:keys]        
+        gateway_keys = ssh_gateway_config[:keys]
 
         # Use the keys specificed on the command line if available (overrides SSH Config)
         if config[:ssh_gateway_identity]
